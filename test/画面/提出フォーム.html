@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <title>外来植物提出フォーム</title>
+    <script>
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition, showError);
+            } else {
+                alert("このブラウザでは位置情報が取得できません。");
+            }
+        }
+
+        function showPosition(position) {
+            var lat = position.coords.latitude;
+            var lon = position.coords.longitude;
+            var googleMapsUrl = 'https://www.google.com/maps?q=' + lat + ',' + lon;
+            document.getElementById("map").value = googleMapsUrl;
+        }
+
+        function showError(error) {
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    alert("ユーザーが位置情報の取得を拒否しました。");
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    alert("位置情報が利用できません。");
+                    break;
+                case error.TIMEOUT:
+                    alert("位置情報の取得がタイムアウトしました。");
+                    break;
+                case error.UNKNOWN_ERROR:
+                    alert("不明なエラーが発生しました。");
+                    break;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>外来植物提出フォーム</h1>
+    <form action="submit_form.php" method="post" enctype="multipart/form-data">
+        <div>
+            <label for="sighting-plants">Q1. どの外来植物を見ましたか？</label><br>
+            <input type="radio" id="ookinkeigiku" name="plants_seen" value="オオキンケイギク">
+            <label for="ookinkeigiku">オオキンケイギク</label><br>
+            <input type="radio" id="arechiuri" name="plants_seen" value="アレチウリ">
+            <label for="arechiuri">アレチウリ</label><br>
+            <input type="radio" id="oobutakusa" name="plants_seen" value="オオブタクサ">
+            <label for="oobutakusa">オオブタクサ</label>
+        </div>
+        <br>
+        <div>
+            <label for="location">Q2. 目撃した場所はどちらですか？</label><br>
+            <input type="text" id="location" name="location" required>
+        </div>
+        <br>
+
+        <div>
+            <label for="map">Q3. 目撃した場所を地図で場所を示してください。</label><br>
+            <input type="text" id="map" name="map" placeholder="Google Maps URLまたは座標を入力してください" required>
+            <button type="button" onclick="getLocation()">現在地を取得</button>
+        </div>
+        <br>
+
+        <div>
+            <label for="situation">Q4. 目撃したときの状況を教えてください。</label><br>
+            <textarea id="situation" name="situation" rows="4" cols="50" required></textarea>
+        </div>
+        <br>
+
+        <div>
+            <label for="photo">Q5. 目撃したときの写真があれば提供してください。</label><br>
+            <input type="file" id="photo" name="photo" accept="image/*">
+        </div>
+        <br>
+
+        <div>
+            <input type="submit" value="送信">
+        </div>
+    </form>
+</body>
+</html>

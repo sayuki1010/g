@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <title>Geolocation API Example</title>
+    <script>
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition, showError);
+            } else {
+                alert("このブラウザでは位置情報が取得できません。");
+            }
+        }
+
+        function showPosition(position) {
+            var lat = position.coords.latitude;
+            var lon = position.coords.longitude;
+            var googleMapsUrl = 'https://www.google.com/maps?q=' + lat + ',' + lon;
+            document.getElementById("map").innerHTML = `<a href="${googleMapsUrl}" target="_blank">Google Mapsで表示</a>`;
+        }
+
+        function showError(error) {
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    alert("ユーザーが位置情報の取得を拒否しました。");
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    alert("位置情報が利用できません。");
+                    break;
+                case error.TIMEOUT:
+                    alert("位置情報の取得がタイムアウトしました。");
+                    break;
+                case error.UNKNOWN_ERROR:
+                    alert("不明なエラーが発生しました。");
+                    break;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Geolocation API Example</h1>
+    <button onclick="getLocation()">現在地を取得</button>
+    <p id="map"></p>
+</body>
+</html>

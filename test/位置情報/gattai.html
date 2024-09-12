@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet Routing with Pin Management</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <style>
+        #map { height: 600px; }
+        button {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+    <script>
+        const map = L.map('map').setView([35.3432, 139.3652], 12); // 茅ヶ崎市の中心
+
+        // OSMのタイルレイヤーを設定
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        const chigasakiBounds = {
+            north: 35.3882,
+            south: 35.3178,
+            east: 139.4186,
+            west: 139.3214
+        };
+
+        let waypoints = [];
+        let markers = [];
+        const confirmedMarkers = new Set(); // 確定済みマーカーのID
+
+        // Leaflet Routing Machineを初期化
+        const control = L.Routing.control({
+            waypoints: [],
+            routeWhileDragging: true,
+            createMarker: function() { return null; }, // マーカーは自分で追加するので表示しない
+            addWaypoints: false,
+        }).addTo(map);
+
+        // ピンをローカルストレージに保存する
+        function saveMarkerToStorage(lat, lng, color, isInChigasaki) {
+            const markers = JSON.parse(localStorage.getItem('markers')) || [];
+            markers.push({ lat, lng, color, isInChigasaki });
+            localStorage.setItem('markers', JSON.stringify(markers));
+        }
+
+        // ピンをローカルストレージから削除する
+        function removeMarkerFromStorage(lat, lng) {
+            let markers = JSON.parse(localStorage.getItem('markers')) || [];
+            markers = markers.filter(marker => !(marker.lat === lat && marker.lng === lng));
+            localStorage.setItem('markers', JSON.stringify(markers));
+        }
+
+        // ローカルストレージからピンを読み込んで表示
+        function loadMarkers() {
+            const storedMarkers = JSON.parse(localStorage.getItem('markers')) || [];
+            storedMarkers.forEach(marker => {
+                const markerIcon = L.icon({
+                    iconUrl: `https://maps.google.com/mapfiles/ms/icons/${marker.color}-dot.png`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 32],
+                    popupAnchor: [0, -32]
+                });
+
+                const newMarker = L.marker([marker.lat, marker.lng], { icon: markerIcon, draggable: true }).addTo(map)
+                    .bindPopup(marker.isInChigasaki ? '茅ヶ崎市内の場所です' : '茅ヶ崎市外の場所です');
+
+                newMarker.id = waypoints.length;
+                markers.push(newMarker);
+
+                if (marker.isInChigasaki) {
+                    waypoints.push(L.latLng(marker.lat, marker.lng));
+                    confirmedMarkers.add(newMarker.id);
+                    updateRoute();
+                }
+
+                newMarker.on('click', function (e) {
+                    if (confirmedMarkers.has(newMarker.id) && confirm('削除しますか？')) {
+                        const markerLatLng = e.target.getLatLng();
+                        map.removeLayer(e.target);
+                        waypoints = waypoints.filter(p => !(p.lat === markerLatLng.lat && p.lng === markerLatLng.lng));
+                        markers = markers.filter(m => !(m.getLatLng().lat === markerLatLng.lat && m.getLatLng().lng === markerLatLng.lng));
+                        confirmedMarkers.delete(newMarker.id);
+                        removeMarkerFromStorage(markerLatLng.lat, markerLatLng.lng);
+                        updateRoute();
+                    }
+                });
+            });
+        }
+
+        // 現在地を取得してピンを立てる
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function (position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+
+                const isInChigasaki = lat >= chigasakiBounds.south && lat <= chigasakiBounds.north &&
+                    lng >= chigasakiBounds.west && lng <= chigasakiBounds.east;
+                const markerColor = isInChigasaki ? 'blue' : 'red';
+
+                const markerIcon = L.icon({
+                    iconUrl: `https://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 32],
+                    popupAnchor: [0, -32]
+                });
+
+                const marker = L.marker([lat, lng], { icon: markerIcon }).addTo(map)
+                    .bindPopup(isInChigasaki ? '茅ヶ崎市内の現在地です' : '茅ヶ崎市外の現在地です')
+                    .openPopup()
+                    .on('click', function () {
+                        if (confirm('このピンを削除しますか？')) {
+                            map.removeLayer(this);
+                            confirmedMarkers.delete(marker.id);
+                            removeMarkerFromStorage(lat, lng);
+                            updateRoute();
+                        }
+                    });
+
+                if (isInChigasaki) {
+                    marker.id = waypoints.length;
+                    markers.push(marker);
+                    waypoints.push(L.latLng(lat, lng));
+                    confirmedMarkers.add(marker.id);
+                    saveMarkerToStorage(lat, lng, 'blue', isInChigasaki);
+                    updateRoute();
+                }
+
+                map.setView([lat, lng], 15);
+            }, function (error) {
+                alert('位置情報の取得に失敗しました。位置情報サービスが有効であることを確認してください。');
+            });
+        } else {
+            alert('このブラウザはGeolocation APIに対応していません');
+        }
+
+        // ピンを地図上で新たに追加する
+        map.on('click', function (e) {
+            if (confirm('ここにピンを立てますか？')) {
+                const latlng = e.latlng;
+                const isInChigasaki = latlng.lat >= chigasakiBounds.south && latlng.lat <= chigasakiBounds.north &&
+                    latlng.lng >= chigasakiBounds.west && latlng.lng <= chigasakiBounds.east;
+                const markerColor = isInChigasaki ? 'blue' : 'red';
+
+                const markerIcon = L.icon({
+                    iconUrl: `https://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 32],
+                    popupAnchor: [0, -32]
+                });
+
+                const marker = L.marker(latlng, { icon: markerIcon, draggable: true }).addTo(map)
+                    .bindPopup(isInChigasaki ? '茅ヶ崎市内の場所です' : '茅ヶ崎市外の場所です')
+                    .openPopup();
+
+                marker.id = waypoints.length;
+                markers.push(marker);
+
+                if (isInChigasaki) {
+                    waypoints.push(L.latLng(latlng.lat, latlng.lng));
+                    confirmedMarkers.add(marker.id);
+                    saveMarkerToStorage(latlng.lat, latlng.lng, 'blue', isInChigasaki);
+                    updateRoute();
+                }
+
+                marker.on('click', function (e) {
+                    if (confirmedMarkers.has(marker.id) && confirm('削除しますか？')) {
+                        const markerLatLng = e.target.getLatLng();
+                        map.removeLayer(e.target);
+                        waypoints = waypoints.filter(p => !(p.lat === markerLatLng.lat && p.lng === markerLatLng.lng));
+                        markers = markers.filter(m => !(m.getLatLng().lat === markerLatLng.lat && m.getLatLng().lng === markerLatLng.lng));
+                        confirmedMarkers.delete(marker.id);
+                        removeMarkerFromStorage(markerLatLng.lat, markerLatLng.lng);
+                        updateRoute(); // ルートを再描画
+                    }
+                });
+            }
+        });
+
+        // ルートを更新する関数
+        function updateRoute() {
+            // 青いピンのみウェイポイントに追加する
+            const chigasakiWaypoints = waypoints.filter((point) => {
+                return confirmedMarkers.has(markers.find(marker => marker.getLatLng().equals(point)).id);
+            });
+
+            control.setWaypoints(chigasakiWaypoints);
+        }
+
+        // ページが読み込まれたときにローカルストレージからピンを読み込む
+        window.addEventListener('load', function () {
+            loadMarkers();
+        });
+    </script>
+</body>
+</html>

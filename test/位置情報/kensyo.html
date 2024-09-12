@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>現在地にピンを立てる地図（茅ヶ崎市）</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        #map {
+            height: 100vh; /* ビューポートの高さを100%に設定 */
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            padding: 10px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>現在地にピンを立てる地図（茅ヶ崎市）</h1>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+// Leafletで地図を初期化
+const map = L.map('map').setView([35.3432, 139.3652], 12); // 茅ヶ崎市の中心に設定
+
+// OpenStreetMapのタイルレイヤーを設定
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+// 茅ヶ崎市の範囲を設定
+const chigasakiBounds = {
+    north: 35.3882,  // 北緯（茅ヶ崎市の北端）
+    south: 35.3178,  // 南緯（茅ヶ崎市の南端）
+    east: 139.4186,  // 東経（茅ヶ崎市の東端）
+    west: 139.3214   // 西経（茅ヶ崎市の西端）
+};
+
+// 現在地を取得してピンを立てる
+if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function(position) {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        console.log(`Current Position: Latitude: ${lat}, Longitude: ${lng}`); // 追加
+
+        // 茅ヶ崎市内かどうかを判定
+        const isInChigasaki = lat >= chigasakiBounds.south && lat <= chigasakiBounds.north &&
+                              lng >= chigasakiBounds.west && lng <= chigasakiBounds.east;
+        const markerColor = isInChigasaki ? 'blue' : 'red';
+
+        // マーカーアイコンを設定
+        const markerIcon = L.icon({
+            iconUrl: `https://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+
+        // 現在地にピンを立てる
+        const marker = L.marker([lat, lng], {icon: markerIcon}).addTo(map)
+            .bindPopup(isInChigasaki ? '茅ヶ崎市内の現在地です' : '茅ヶ崎市外の現在地です')
+            .openPopup()
+            .on('click', function() {
+                if (confirm('このピンを削除しますか？')) {
+                    map.removeLayer(this);
+                    removeMarkerFromStorage(lat, lng);
+                }
+            });
+
+        map.setView([lat, lng], 15);
+        saveMarkerToStorage(lat, lng, markerColor, isInChigasaki);
+    }, function(error) {
+        console.error('位置情報の取得に失敗しました: ', error);
+        alert('位置情報の取得に失敗しました。位置情報サービスが有効であることを確認してください。');
+    });
+} else {
+    alert('このブラウザはGeolocation APIに対応していません');
+}
+
+// ローカルストレージからピンを読み込む
+function loadMarkers() {
+    const markers = JSON.parse(localStorage.getItem('markers')) || [];
+    markers.forEach(marker => {
+        const icon = L.icon({
+            iconUrl: marker.color === 'blue' ? 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png' : 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+        L.marker([marker.lat, marker.lng], {icon: icon})
+            .addTo(map)
+            .bindPopup(marker.isInChigasaki ? '茅ヶ崎市内の現在地です' : '茅ヶ崎市外の現在地です')
+            .on('click', function() {
+                if (confirm('このピンを削除しますか？')) {
+                    map.removeLayer(this);
+                    removeMarkerFromStorage(marker.lat, marker.lng);
+                }
+            });
+    });
+}
+
+// ピンをローカルストレージに保存
+function saveMarkerToStorage(lat, lng, color, isInChigasaki) {
+    const markers = JSON.parse(localStorage.getItem('markers')) || [];
+    if (!markers.some(marker => marker.lat === lat && marker.lng === lng)) {
+        markers.push({lat, lng, color, isInChigasaki});
+        localStorage.setItem('markers', JSON.stringify(markers));
+    }
+}
+
+// ピンをローカルストレージから削除
+function removeMarkerFromStorage(lat, lng) {
+    let markers = JSON.parse(localStorage.getItem('markers')) || [];
+    markers = markers.filter(marker => !(marker.lat === lat && marker.lng === lng));
+    localStorage.setItem('markers', JSON.stringify(markers));
+}
+
+// ページロード時にピンを読み込む
+loadMarkers();
+</script>
+
+</body>
+</html>
